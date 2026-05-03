@@ -8,3 +8,8 @@ __pycache__/
 # Virtual environments
 .venv/
 venv/
+
+
+# cambridge-battlecode-26 files
+maps/*
+cambc.toml
