@@ -9,17 +9,20 @@ from cambc import * # Controller, Direction, EntityType, Environment, Position
 
 # non-centre directions
 DIRECTIONS = [d for d in Direction if d != Direction.CENTRE]
+# diagonal directions
+DIAGONALS = [Direction.NORTHEAST, Direction.NORTHWEST, Direction.SOUTHEAST, Direction.SOUTHWEST]
 
 class Player:
     def __init__(self):
         self.num_spawned = 0 # number of builder bots spawned so far (core)
+        self.placed_harvester = False # whether we've placed a harvester bot yet (builder bot)
 
     def run(self, ct: Controller) -> None:
         scale_percent = ct.get_scale_percent()
         etype = ct.get_entity_type()
         my_id = ct.get_id()
         if etype == EntityType.CORE:
-            if scale_percent <= 200:
+            if scale_percent <= 250:
             #if self.num_spawned < 3:
                 # if we haven't spawned builder bots yet, try to spawn one on a random tile
                 spawn_pos = ct.get_position().add(random.choice(DIRECTIONS))
@@ -27,13 +30,14 @@ class Player:
                     ct.spawn_builder(spawn_pos)
                     self.num_spawned += 1
         elif etype == EntityType.BUILDER_BOT:
-            print(f"Builder bot {my_id} here! :)", file=sys.stderr)
+            #print(f"Builder bot {my_id} here! :)", file=sys.stderr)
             # if we are adjacent to an ore tile, build a harvester on it
             for d in Direction:
                 check_pos = ct.get_position().add(d)
                 if ct.can_build_harvester(check_pos):
                     ct.build_harvester(check_pos)
-                    break
+                    self.placed_harvester = True
+                    #break
             # get current tile ID
             cur_tile_id = ct.get_tile_building_id(ct.get_position().add(Direction.CENTRE))
             #if cur_tile_id and ct.get_team(cur_tile_id) == Team.B and ct.get_entity_type(cur_tile_id) == EntityType.CORE:
@@ -41,6 +45,7 @@ class Player:
                 #self.num_spawned -= 1
 
             #self.random_move(ct, my_id)
+            print("Before move, harvester placed? ", self.placed_harvester, file=sys.stderr)
             self.move_explore(ct, my_id)
             # # move in a random direction
             # move_dir = random.choice(DIRECTIONS)
@@ -61,7 +66,7 @@ class Player:
 
         #scale_percent = ct.get_scale_percent()
         print(f"Cost scaling: {scale_percent} :)") #, file=sys.stderr
-        print(f"Num spawned: {self.num_spawned}", file=sys.stderr)
+        #print(f"Num spawned: {self.num_spawned}", file=sys.stderr)
 
 
             ## place a marker on an adjacent tile with the current round number
@@ -85,25 +90,41 @@ class Player:
         if ct.can_move(move_dir):
             ct.move(move_dir)
 
+    """
+    Move if you can build a road
+    """
     def move_explore(self, ct: Controller, my_id: int) -> None:
         # try to move in a new direction
+        print(f"Builder bot {my_id} exploring. Built harvester? {self.placed_harvester}", file=sys.stderr)
+
         move_dir = None # random.choice(DIRECTIONS)
         move_pos = None
         for move_dir in Direction:
             move_pos = ct.get_position().add(move_dir)
             # we need to place a conveyor or road to stand on, before we can move onto a tile
-            if ct.can_build_road(move_pos):
+            if not self.placed_harvester and ct.can_build_conveyor(move_pos, move_dir.opposite()):
+                ct.build_conveyor(move_pos, move_dir.opposite())
+                if ct.can_move(move_dir):
+                    ct.move(move_dir)
+            elif self.placed_harvester and ct.can_build_road(move_pos):
                 ct.build_road(move_pos)
                 if ct.can_move(move_dir):
                     ct.move(move_dir)
             else:
                 continue
-        if (not move_dir) or (not move_pos):
+        print(self.placed_harvester)
+        if (not move_dir or not move_pos) and not self.placed_harvester:
             print("Couldn't find a direction to move in :( - will self destruct", file=sys.stderr)
             print("Couldn't find a direction to move in :( - will self destruct")
             ct.self_destruct()
 
         #if ct.can_build_conveyor(move_pos):
         #    ct.build_conveyor(move_pos)
+    
+    def place_conveyor(self, ct: Controller, move_pos: Position, move_dir: Direction) -> bool:
+        if ct.can_build_conveyor(move_pos, move_dir.opposite()):
+            ct.build_conveyor(move_pos, move_dir.opposite())
+            return True
+        return False
 
     
